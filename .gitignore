@@ -1,0 +1,18 @@
+# Vivado generated directories
+*.cache/
+*.runs/
+*.sim/
+*.gen/
+*.hw/
+*.ip_user_files/
+.Xil/
+
+# Vivado temporary files
+*.jou
+*.log
+*.str
+*.wdb
+*.pb
+
+# Windows
+Thumbs.db
