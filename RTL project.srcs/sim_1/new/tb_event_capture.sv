@@ -179,9 +179,7 @@ module tb_event_capture;
         check_bit(event_done, 1'b0, "RESET EVENT_DONE");
         check_bit(trigger_enable, 1'b0, "RESET TRIGGER_ENABLE");
 
-        // ------------------------------------------------------------------
         // A. Build history. A trigger before 1024 accepted samples is ignored.
-        // ------------------------------------------------------------------
         for (i = 0; i < 2300; i++) begin
             send_sample(i, (i == 500));
 
@@ -190,23 +188,16 @@ module tb_event_capture;
                 error_count++;
             end
 
-            if (i < 1023) begin
-                if (trigger_enable !== 1'b0) begin
-                    $error("TRIGGER_ENABLE asserted too early at sample %0d", i);
-                    error_count++;
-                end
+            if (i < 1023 && trigger_enable !== 1'b0) begin
+                $error("TRIGGER_ENABLE asserted too early at sample %0d", i);
+                error_count++;
             end
         end
 
-        // 2300 history samples have been accepted, so trigger is eligible.
         check_bit(trigger_enable, 1'b1, "TRIGGER ENABLE AFTER HISTORY");
         check_bit(event_done, 1'b0, "NO EVENT BEFORE REAL TRIGGER");
 
-        // ------------------------------------------------------------------
-        // B. Trigger sample.
-        // 2300 mod 2048 = 252, so trigger_ptr must be 252.
-        // start_ptr = 252 - 1024 mod 2048 = 1276.
-        // ------------------------------------------------------------------
+        // B. Trigger: 2300 mod 2048 = 252; start = 252-1024 mod 2048 = 1276.
         send_sample(32'd2300, 1'b1);
 
         check_ptr(trigger_ptr, 11'd252, "TRIGGER PTR");
@@ -214,10 +205,7 @@ module tb_event_capture;
         check_bit(trigger_enable, 1'b0, "TRIGGER DISABLED DURING POST");
         check_bit(event_done, 1'b0, "EVENT NOT DONE ON TRIGGER SAMPLE");
 
-        // ------------------------------------------------------------------
-        // C. Store 1022 accepted post-trigger samples.
-        // Insert idle clocks: they must NOT count as post samples.
-        // ------------------------------------------------------------------
+        // C. Store 1022 post samples, with idle clocks that must not count.
         for (i = 2301; i <= 2800; i++) begin
             send_sample(i, 1'b0);
         end
@@ -231,28 +219,22 @@ module tb_event_capture;
             send_sample(i, 1'b0);
         end
 
-        // 2301..3322 = exactly 1022 accepted post samples.
         check_bit(event_done, 1'b0, "NOT DONE AFTER 1022 POST SAMPLES");
 
-        // 1023rd accepted post-trigger sample.
+        // 1023rd post sample.
         send_sample(32'd3323, 1'b0);
         check_bit(event_done, 1'b1, "DONE AFTER EXACTLY 1023 POST SAMPLES");
         check_bit(trigger_enable, 1'b0, "TRIGGER DISABLED WHEN EVENT FROZEN");
 
-        // ------------------------------------------------------------------
-        // D. Chronological event readout.
-        // Expected event = sample indexes 1276..3323 inclusive (2048 entries).
-        // Trigger sample 2300 must appear at event offset 1024.
-        // ------------------------------------------------------------------
+        // D. Event readout. Expected chronological indexes: 1276..3323.
         for (i = 0; i < DEPTH; i++) begin
-            read_and_check(i, 32'(1276 + i));
+            read_and_check(i, 32'd1276 + i);
         end
 
+        // Trigger must sit at event offset 1024.
         read_and_check(1024, 32'd2300);
 
-        // ------------------------------------------------------------------
-        // E. Frozen means frozen: incoming accepted samples cannot modify event.
-        // ------------------------------------------------------------------
+        // E. Frozen buffer must not change while upstream samples keep arriving.
         for (i = 4000; i < 4010; i++) begin
             send_sample(i, 1'b1);
             check_bit(event_done, 1'b1, "EVENT_DONE MUST STAY HIGH WHILE FROZEN");
@@ -262,9 +244,7 @@ module tb_event_capture;
         read_and_check(1024, 32'd2300);
         read_and_check(2047, 32'd3323);
 
-        // ------------------------------------------------------------------
-        // F. Readout completion rearms capture, but requires fresh PRE history.
-        // ------------------------------------------------------------------
+        // F. Readout completion rearms capture but requires fresh PRE history.
         @(negedge clk);
         readout_done = 1'b1;
         @(posedge clk);
